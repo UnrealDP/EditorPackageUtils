@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "EditorPackageUtils",
+	"Description": "",
+	"Category": "Other",
+	"CreatedBy": "Dongpyo Lee",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "EditorPackageUtils",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}
