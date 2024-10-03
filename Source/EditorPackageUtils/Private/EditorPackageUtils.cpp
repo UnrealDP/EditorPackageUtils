@@ -2,192 +2,194 @@
 
 
 #include "EditorPackageUtils.h"
-#include "UnrealEd.h"  // GUnrealEd »ç¿ëÀ» À§ÇØ ÇÊ¿ä
+#include "UnrealEd.h"  // GUnrealEd ì‚¬ìš©ì„ ìœ„í•´ í•„ìš”
 #include <Misc/HotReloadInterface.h>
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "UObject/SavePackage.h"
 
 /**
- * ÆÄÀÏ °æ·Î¿¡¼­ ¸ğµâ¸íÀ» ÃßÃâÇÏ´Â ÇÔ¼ö.
- * ÁÖ¾îÁø ÆÄÀÏ °æ·Î¿¡¼­ "Source" µğ·ºÅä¸® ÀÌÈÄÀÇ Ã¹ ¹øÂ° Æú´õ¸íÀ» ¸ğµâ¸íÀ¸·Î °£ÁÖÇÏ°í ÃßÃâÇÕ´Ï´Ù.
+ * íŒŒì¼ ê²½ë¡œì—ì„œ ëª¨ë“ˆëª…ì„ ì¶”ì¶œí•˜ëŠ” í•¨ìˆ˜.
+ * ì£¼ì–´ì§„ íŒŒì¼ ê²½ë¡œì—ì„œ "Source" ë””ë ‰í† ë¦¬ ì´í›„ì˜ ì²« ë²ˆì§¸ í´ë”ëª…ì„ ëª¨ë“ˆëª…ìœ¼ë¡œ ê°„ì£¼í•˜ê³  ì¶”ì¶œí•©ë‹ˆë‹¤.
  *
- * @param FilePath ¸ğµâ¸íÀ» ÃßÃâÇÒ ÆÄÀÏ °æ·Î.
- * @return ÃßÃâµÈ ¸ğµâ¸íÀ» ¹İÈ¯. ¸¸¾à "Source" °æ·Î°¡ Æ÷ÇÔµÇÁö ¾ÊÀº Àß¸øµÈ °æ·Î¶ó¸é ºó ¹®ÀÚ¿­À» ¹İÈ¯.
+ * @param FilePath ëª¨ë“ˆëª…ì„ ì¶”ì¶œí•  íŒŒì¼ ê²½ë¡œ.
+ * @return ì¶”ì¶œëœ ëª¨ë“ˆëª…ì„ ë°˜í™˜. ë§Œì•½ "Source" ê²½ë¡œê°€ í¬í•¨ë˜ì§€ ì•Šì€ ì˜ëª»ëœ ê²½ë¡œë¼ë©´ ë¹ˆ ë¬¸ìì—´ì„ ë°˜í™˜.
  */
 FString EditorPackageUtils::ExtractModuleNameFromPath(const FString& FilePath)
 {
-    // °æ·Î¿¡¼­ "Source" ÀÌÈÄÀÇ °æ·Î ÃßÃâ
+    // ê²½ë¡œì—ì„œ "Source" ì´í›„ì˜ ê²½ë¡œ ì¶”ì¶œ
     FString PathAfterSource;
     if (FilePath.Split(TEXT("/Source/"), nullptr, &PathAfterSource))
     {
-        // "Source/" ÀÌÈÄÀÇ Ã¹ ¹øÂ° Æú´õ¸íÀ» ¸ğµâ¸íÀ¸·Î °£ÁÖ
+        // "Source/" ì´í›„ì˜ ì²« ë²ˆì§¸ í´ë”ëª…ì„ ëª¨ë“ˆëª…ìœ¼ë¡œ ê°„ì£¼
         FString ModuleName = PathAfterSource.Left(PathAfterSource.Find(TEXT("/")));
 
-        // ¸ğµâ¸í ¹İÈ¯
+        // ëª¨ë“ˆëª… ë°˜í™˜
         return ModuleName;
     }
 
-    // °æ·Î°¡ ¿Ã¹Ù¸£Áö ¾ÊÀ» °æ¿ì ºó ¹®ÀÚ¿­ ¹İÈ¯
+    // ê²½ë¡œê°€ ì˜¬ë°”ë¥´ì§€ ì•Šì„ ê²½ìš° ë¹ˆ ë¬¸ìì—´ ë°˜í™˜
     return FString();
 }
 
 /**
- * °æ·Î¿¡ .uasset È®ÀåÀÚ°¡ ºÙ¾î ÀÖ´ÂÁö È®ÀÎÇÏ°í, ¾øÀ¸¸é ºÙ¿©ÁÖ´Â ÇÔ¼ö.
+ * ê²½ë¡œì— .uasset í™•ì¥ìê°€ ë¶™ì–´ ìˆëŠ”ì§€ í™•ì¸í•˜ê³ , ì—†ìœ¼ë©´ ë¶™ì—¬ì£¼ëŠ” í•¨ìˆ˜.
  *
- * @param FilePath È®ÀÎÇÒ ÆÄÀÏ °æ·Î.
- * @return .uasset È®ÀåÀÚ°¡ ºÙ¾îÀÖ´Â ¿Ã¹Ù¸¥ ÆÄÀÏ °æ·Î.
+ * @param FilePath í™•ì¸í•  íŒŒì¼ ê²½ë¡œ.
+ * @return .uasset í™•ì¥ìê°€ ë¶™ì–´ìˆëŠ” ì˜¬ë°”ë¥¸ íŒŒì¼ ê²½ë¡œ.
  */
 FString EditorPackageUtils::EnsureUAssetExtension(const FString& FilePath)
 {
-    // -- ".uasset" È®ÀåÀÚ°¡ ÀÖ´ÂÁö È®ÀÎ
+    // -- ".uasset" í™•ì¥ìê°€ ìˆëŠ”ì§€ í™•ì¸
     if (!FilePath.EndsWith(TEXT(".uasset")))
     {
-        // -- ¾øÀ¸¸é ".uasset" È®ÀåÀÚ¸¦ Ãß°¡
+        // -- ì—†ìœ¼ë©´ ".uasset" í™•ì¥ìë¥¼ ì¶”ê°€
         return FilePath + TEXT(".uasset");
     }
 
-    // -- ÀÌ¹Ì È®ÀåÀÚ°¡ ÀÖÀ¸¸é ±×´ë·Î ¹İÈ¯
+    // -- ì´ë¯¸ í™•ì¥ìê°€ ìˆìœ¼ë©´ ê·¸ëŒ€ë¡œ ë°˜í™˜
     return FilePath;
 }
 
 /**
- * ÆÄÀÏ ½Ã½ºÅÛ °æ·Î¸¦ Unreal EngineÀÇ ÆĞÅ°Áö °æ·Î·Î º¯È¯ÇÏ´Â ÇÔ¼ö.
- * ÇÁ·ÎÁ§Æ®ÀÇ ÄÜÅÙÃ÷ µğ·ºÅÍ¸® ¶Ç´Â ÇÃ·¯±×ÀÎÀÇ ÄÜÅÙÃ÷ µğ·ºÅÍ¸®¿¡¼­ ÁÖ¾îÁø ÆÄÀÏ ½Ã½ºÅÛ °æ·Î¸¦
- * Unreal EngineÀÌ »ç¿ëÇÏ´Â ÆĞÅ°Áö °æ·Î·Î º¯È¯ÇÕ´Ï´Ù.
- * ¿¹¸¦ µé¾î, "/Content/MyAsset/MyFile" ÆÄÀÏ ½Ã½ºÅÛ °æ·Î´Â "/Game/MyAsset/MyFile" ÆĞÅ°Áö °æ·Î·Î,
- * ÇÃ·¯±×ÀÎÀÇ ÄÜÅÙÃ÷ °æ·Î´Â "/PluginName/Content/MyAsset"À¸·Î º¯È¯µË´Ï´Ù.
+ * íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œë¥¼ Unreal Engineì˜ íŒ¨í‚¤ì§€ ê²½ë¡œë¡œ ë³€í™˜í•˜ëŠ” í•¨ìˆ˜.
+ * í”„ë¡œì íŠ¸ì˜ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ ë˜ëŠ” í”ŒëŸ¬ê·¸ì¸ì˜ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ì—ì„œ ì£¼ì–´ì§„ íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œë¥¼
+ * Unreal Engineì´ ì‚¬ìš©í•˜ëŠ” íŒ¨í‚¤ì§€ ê²½ë¡œë¡œ ë³€í™˜í•©ë‹ˆë‹¤.
+ * ì˜ˆë¥¼ ë“¤ì–´, "/Content/MyAsset/MyFile" íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œëŠ” "/Game/MyAsset/MyFile" íŒ¨í‚¤ì§€ ê²½ë¡œë¡œ,
+ * í”ŒëŸ¬ê·¸ì¸ì˜ ì½˜í…ì¸  ê²½ë¡œëŠ” "/PluginName/Content/MyAsset"ìœ¼ë¡œ ë³€í™˜ë©ë‹ˆë‹¤.
  *
- * @param FilePath ½ÇÁ¦ ÆÄÀÏ ½Ã½ºÅÛ °æ·Î. ¿¹: "C:/Unreal Projects/YourProject/Content/MyAsset/MyFile"
- * @return Unreal Engine ÆĞÅ°Áö °æ·Î. ¿¹: "/Game/MyAsset/MyFile" ¶Ç´Â "/PluginName/Content/MyAsset/MyFile"
+ * @param FilePath ì‹¤ì œ íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œ. ì˜ˆ: "C:/Unreal Projects/YourProject/Content/MyAsset/MyFile"
+ * @return Unreal Engine íŒ¨í‚¤ì§€ ê²½ë¡œ. ì˜ˆ: "/Game/MyAsset/MyFile" ë˜ëŠ” "/PluginName/Content/MyAsset/MyFile"
  */
 FString EditorPackageUtils::ConvertFilePathToPackagePath(const FString& FilePath)
 {
-    // -- ÇÁ·ÎÁ§Æ®ÀÇ ÄÜÅÙÃ÷ µğ·ºÅÍ¸® °æ·Î¸¦ Àı´ë °æ·Î·Î º¯È¯
+    // -- í”„ë¡œì íŠ¸ì˜ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ ê²½ë¡œë¥¼ ì ˆëŒ€ ê²½ë¡œë¡œ ë³€í™˜
     FString ProjectContentDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir());
     UE_LOG(LogTemp, Log, TEXT("Absolute Project Content Dir: %s"), *ProjectContentDir);
 
-    // -- ÇÁ·ÎÁ§Æ® ÄÜÅÙÃ÷ Æú´õ ³»¿¡ ÀÖ´ÂÁö È®ÀÎ
+    // -- í”„ë¡œì íŠ¸ ì½˜í…ì¸  í´ë” ë‚´ì— ìˆëŠ”ì§€ í™•ì¸
     if (FilePath.StartsWith(ProjectContentDir))
     {
-        // ÄÜÅÙÃ÷ Æú´õ ³»¿¡ ÀÖÀ» °æ¿ì °æ·Î º¯È¯
+        // ì½˜í…ì¸  í´ë” ë‚´ì— ìˆì„ ê²½ìš° ê²½ë¡œ ë³€í™˜
         FString RelativePath = FilePath.RightChop(ProjectContentDir.Len());
 
-        // -- ½½·¡½Ã Áßº¹ ¹æÁö
+        // -- ìŠ¬ë˜ì‹œ ì¤‘ë³µ ë°©ì§€
         RelativePath.RemoveFromStart(TEXT("/"));
 
-        // -- Unreal °æ·Î·Î º¯È¯
+        // -- Unreal ê²½ë¡œë¡œ ë³€í™˜
         FString PackagePath = FString::Printf(TEXT("/Game/%s"), *RelativePath);
         UE_LOG(LogTemp, Log, TEXT("Converted Package Path: %s"), *PackagePath);
         return PackagePath;
     }
 
-    // -- ÇÃ·¯±×ÀÎÀÇ ÄÜÅÙÃ÷ µğ·ºÅÍ¸®¿¡¼­ È®ÀÎ
+    // -- í”ŒëŸ¬ê·¸ì¸ì˜ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ì—ì„œ í™•ì¸
     const TArray<TSharedRef<IPlugin>> Plugins = IPluginManager::Get().GetEnabledPlugins();
     for (const TSharedRef<IPlugin>& Plugin : Plugins)
     {
         FString PluginContentDir = FPaths::ConvertRelativePathToFull(Plugin->GetContentDir());
         if (FilePath.StartsWith(PluginContentDir))
         {
-            // ÇÃ·¯±×ÀÎÀÇ ÄÜÅÙÃ÷ Æú´õ ³»¿¡ ÀÖÀ» °æ¿ì °æ·Î º¯È¯
+            // í”ŒëŸ¬ê·¸ì¸ì˜ ì½˜í…ì¸  í´ë” ë‚´ì— ìˆì„ ê²½ìš° ê²½ë¡œ ë³€í™˜
             FString RelativePath = FilePath.RightChop(PluginContentDir.Len());
 
-            // -- ½½·¡½Ã Áßº¹ ¹æÁö
+            // -- ìŠ¬ë˜ì‹œ ì¤‘ë³µ ë°©ì§€
             RelativePath.RemoveFromStart(TEXT("/"));
 
-            // ÇÃ·¯±×ÀÎ °æ·Î·Î º¯È¯
+            // í”ŒëŸ¬ê·¸ì¸ ê²½ë¡œë¡œ ë³€í™˜
             FString PackagePath = FString::Printf(TEXT("/%s/%s"), *Plugin->GetName(), *RelativePath);
             UE_LOG(LogTemp, Log, TEXT("Converted Plugin Package Path: %s"), *PackagePath);
             return PackagePath;
         }
     }
 
-    // °æ·Î°¡ ÀÎ½ÄµÇÁö ¾ÊÀ¸¸é ¿¡·¯ ·Î±× Ãâ·Â ¹× ºó ¹®ÀÚ¿­ ¹İÈ¯
+    // ê²½ë¡œê°€ ì¸ì‹ë˜ì§€ ì•Šìœ¼ë©´ ì—ëŸ¬ ë¡œê·¸ ì¶œë ¥ ë° ë¹ˆ ë¬¸ìì—´ ë°˜í™˜
     UE_LOG(LogTemp, Error, TEXT("FilePath is not inside any recognized content or plugin directory: %s"), *FilePath);
     return FString();
 }
 
 /**
  /**
- * ÇÃ·¯±×ÀÎÀÇ ¾ğ¸®¾ó ÆĞÅ°Áö °æ·Î (¿¹: "/Game/Plugins/PluginName/...")¸¦ ½ÇÁ¦ ÆÄÀÏ ½Ã½ºÅÛ °æ·Î·Î º¯È¯ÇÏ´Â ÇÔ¼ö.
- * ÆĞÅ°Áö °æ·Î°¡ ÇÃ·¯±×ÀÎ ÄÜÅÙÃ÷ Æú´õ¿¡ ÀÖ´Â °æ¿ì, ÇÁ·ÎÁ§Æ®ÀÇ ÇÃ·¯±×ÀÎ µğ·ºÅÍ¸®¸¦ ±âÁØÀ¸·Î Ç® °æ·Î¸¦ °è»êÇÕ´Ï´Ù.
- * ±× ¿Ü¿¡´Â ±âº»ÀûÀ¸·Î FPackageName::LongPackageNameToFilename ÇÔ¼ö¸¦ »ç¿ëÇÏ¿© ÇÁ·ÎÁ§Æ® ÄÜÅÙÃ÷ µğ·ºÅÍ¸®¸¦ ±âÁØÀ¸·Î °æ·Î¸¦ º¯È¯ÇÕ´Ï´Ù.
+ * í”ŒëŸ¬ê·¸ì¸ì˜ ì–¸ë¦¬ì–¼ íŒ¨í‚¤ì§€ ê²½ë¡œ (ì˜ˆ: "/Game/Plugins/PluginName/...")ë¥¼ ì‹¤ì œ íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œë¡œ ë³€í™˜í•˜ëŠ” í•¨ìˆ˜.
+ * íŒ¨í‚¤ì§€ ê²½ë¡œê°€ í”ŒëŸ¬ê·¸ì¸ ì½˜í…ì¸  í´ë”ì— ìˆëŠ” ê²½ìš°, í”„ë¡œì íŠ¸ì˜ í”ŒëŸ¬ê·¸ì¸ ë””ë ‰í„°ë¦¬ë¥¼ ê¸°ì¤€ìœ¼ë¡œ í’€ ê²½ë¡œë¥¼ ê³„ì‚°í•©ë‹ˆë‹¤.
+ * ê·¸ ì™¸ì—ëŠ” ê¸°ë³¸ì ìœ¼ë¡œ FPackageName::LongPackageNameToFilename í•¨ìˆ˜ë¥¼ ì‚¬ìš©í•˜ì—¬ í”„ë¡œì íŠ¸ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ë¥¼ ê¸°ì¤€ìœ¼ë¡œ ê²½ë¡œë¥¼ ë³€í™˜í•©ë‹ˆë‹¤.
  *
- * @param FullPackagePath ¾ğ¸®¾ó ÆĞÅ°Áö °æ·Î (¿¹: "/Game/Plugins/PluginName/...").
- * @return Unreal ÆĞÅ°Áö °æ·Î¿¡ ÇØ´çÇÏ´Â ½ÇÁ¦ ÆÄÀÏ ½Ã½ºÅÛ °æ·Î (¿¹: "C:/Unreal Projects/YourProject/Plugins/PluginName/Content/.../Asset.uasset").
+ * @param FullPackagePath ì–¸ë¦¬ì–¼ íŒ¨í‚¤ì§€ ê²½ë¡œ (ì˜ˆ: "/Game/Plugins/PluginName/...").
+ * @return Unreal íŒ¨í‚¤ì§€ ê²½ë¡œì— í•´ë‹¹í•˜ëŠ” ì‹¤ì œ íŒŒì¼ ì‹œìŠ¤í…œ ê²½ë¡œ (ì˜ˆ: "C:/Unreal Projects/YourProject/Plugins/PluginName/Content/.../Asset.uasset").
  */
 FString EditorPackageUtils::PluginLongPackageNameToFilename(const FString& FullPackagePath)
 {
-    // "Plugins/"¸¦ ±âÁØÀ¸·Î ¾ÕÀÇ ¸ğµç °æ·Î¸¦ Á¦°Å
+    // "Plugins/"ë¥¼ ê¸°ì¤€ìœ¼ë¡œ ì•ì˜ ëª¨ë“  ê²½ë¡œë¥¼ ì œê±°
     int32 PluginsIndex = FullPackagePath.Find(TEXT("Plugins/"));
     if (PluginsIndex != INDEX_NONE)
     {
-        // "Plugins/" ÀÌÈÄÀÇ °æ·Î¸¦ ÃßÃâ
-        FString PluginRelativePath = FullPackagePath.RightChop(PluginsIndex + 8); // "Plugins/" Á¦°Å
+        // "Plugins/" ì´í›„ì˜ ê²½ë¡œë¥¼ ì¶”ì¶œ
+        FString PluginRelativePath = FullPackagePath.RightChop(PluginsIndex + 8); // "Plugins/" ì œê±°
 
-        // ÇÃ·¯±×ÀÎÀÇ ÀÌ¸§À» ÃßÃâ ("/PluginName/..."ÀÇ ÇüÅÂ¿¡¼­ Ã¹ ¹øÂ° ºÎºĞ ÃßÃâ)
+        // í”ŒëŸ¬ê·¸ì¸ì˜ ì´ë¦„ì„ ì¶”ì¶œ ("/PluginName/..."ì˜ í˜•íƒœì—ì„œ ì²« ë²ˆì§¸ ë¶€ë¶„ ì¶”ì¶œ)
         int32 SlashIndex;
         if (PluginRelativePath.FindChar(TEXT('/'), SlashIndex))
         {
             FString PluginName = PluginRelativePath.Left(SlashIndex);
 
-            // PluginName°ú Content¸¦ ÇÕÄ£ °æ·Î »ı¼º
+            // PluginNameê³¼ Contentë¥¼ í•©ì¹œ ê²½ë¡œ ìƒì„±
             FString PluginContentDir = FPaths::Combine(FPaths::ProjectPluginsDir(), PluginName, TEXT("Content"));
 
-            // PluginRelativePath¿¡¼­ PluginName Á¦°ÅÇÏ°í ³²Àº °æ·Î ¾ò±â
+            // PluginRelativePathì—ì„œ PluginName ì œê±°í•˜ê³  ë‚¨ì€ ê²½ë¡œ ì–»ê¸°
             FString RemainingPath = PluginRelativePath.RightChop(SlashIndex + 1);
 
-            // ÃÖÁ¾ °æ·Î »ı¼º (Plugins/PluginName/Content/RemainingPath)
+            // ìµœì¢… ê²½ë¡œ ìƒì„± (Plugins/PluginName/Content/RemainingPath)
             return FPaths::Combine(PluginContentDir, RemainingPath + TEXT(".uasset"));
         }
         else
         {
-            // ÇÃ·¯±×ÀÎ ÀÌ¸§ µÚ¿¡ °æ·Î°¡ ¾øÀ» °æ¿ì ¿¡·¯ Ã³¸®
+            // í”ŒëŸ¬ê·¸ì¸ ì´ë¦„ ë’¤ì— ê²½ë¡œê°€ ì—†ì„ ê²½ìš° ì—ëŸ¬ ì²˜ë¦¬
             UE_LOG(LogTemp, Error, TEXT("Invalid plugin path: %s"), *FullPackagePath);
             return FString();
         }
     }
     else
     {
-        // ÇÃ·¯±×ÀÎ Æú´õ¿¡ ¼ÓÇÏÁö ¾ÊÀ¸¸é ±âº»ÀûÀÎ Unreal ¹æ½ÄÀ¸·Î °æ·Î¸¦ º¯È¯
+        // í”ŒëŸ¬ê·¸ì¸ í´ë”ì— ì†í•˜ì§€ ì•Šìœ¼ë©´ ê¸°ë³¸ì ì¸ Unreal ë°©ì‹ìœ¼ë¡œ ê²½ë¡œë¥¼ ë³€í™˜
         return FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
     }
 }
 
 /**
- * ÁÖ¾îÁø ¿¡¼Â °æ·Î¸¦ ±âÁØÀ¸·Î ¿¡¼ÂÀÌ ÀÌ¹Ì Asset Registry¿¡ µî·ÏµÇ¾î ÀÖ´ÂÁö È®ÀÎÇÏ´Â ÇÔ¼ö.
+ * ì£¼ì–´ì§„ ì—ì…‹ ê²½ë¡œë¥¼ ê¸°ì¤€ìœ¼ë¡œ ì—ì…‹ì´ ì´ë¯¸ Asset Registryì— ë“±ë¡ë˜ì–´ ìˆëŠ”ì§€ í™•ì¸í•˜ëŠ” í•¨ìˆ˜.
  *
- * @param AssetPath È®ÀÎÇÒ ¿¡¼ÂÀÇ °æ·Î (¿¹: "/Game/MyFolder/MyAsset").
- * @return ¿¡¼ÂÀÌ ÀÌ¹Ì µî·ÏµÇ¾î ÀÖÀ¸¸é true, ±×·¸Áö ¾ÊÀ¸¸é false¸¦ ¹İÈ¯.
+ * @param AssetPath í™•ì¸í•  ì—ì…‹ì˜ ê²½ë¡œ (ì˜ˆ: "/Game/MyFolder/MyAsset").
+ * @return ì—ì…‹ì´ ì´ë¯¸ ë“±ë¡ë˜ì–´ ìˆìœ¼ë©´ true, ê·¸ë ‡ì§€ ì•Šìœ¼ë©´ falseë¥¼ ë°˜í™˜.
  */
 bool EditorPackageUtils::IsAssetAlreadyRegistered(const FString& AssetPath)
 {
-    // AssetRegistry ¸ğµâÀ» °¡Á®¿È
+    // AssetRegistry ëª¨ë“ˆì„ ê°€ì ¸ì˜´
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
-    // AssetRegistry¸¦ ÅëÇØ ¿¡¼Â Á¤º¸¸¦ °¡Á®¿È
-    FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(*AssetPath);
+    // AssetRegistryë¥¼ í†µí•´ ì—ì…‹ ì •ë³´ë¥¼ ê°€ì ¸ì˜´
+    FSoftObjectPath SoftAssetPath(AssetPath);
+    FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(SoftAssetPath);
 
-    // ¿¡¼Â µ¥ÀÌÅÍ°¡ À¯È¿ÇÏ¸é ÀÌ¹Ì µî·ÏµÈ ¿¡¼ÂÀÓ
+    // ì—ì…‹ ë°ì´í„°ê°€ ìœ íš¨í•˜ë©´ ì´ë¯¸ ë“±ë¡ëœ ì—ì…‹ì„
     return AssetData.IsValid();
 }
 
 /**
- * µ¿ÀûÀ¸·Î ¸ğµâ¸í°ú ±¸Á¶Ã¼¸íÀ» ±â¹İÀ¸·Î ±¸Á¶Ã¼ Á¤ÀÇ(Å¸ÀÔ Á¤º¸)¸¦ ·ÎµåÇÕ´Ï´Ù.
- * ÀÌ ÇÔ¼ö´Â ±¸Á¶Ã¼ÀÇ ÀÎ½ºÅÏ½º°¡ ¾Æ´Ñ, ÇØ´ç ±¸Á¶Ã¼ÀÇ Á¤ÀÇ¸¦ ·ÎµåÇÕ´Ï´Ù.
+ * ë™ì ìœ¼ë¡œ ëª¨ë“ˆëª…ê³¼ êµ¬ì¡°ì²´ëª…ì„ ê¸°ë°˜ìœ¼ë¡œ êµ¬ì¡°ì²´ ì •ì˜(íƒ€ì… ì •ë³´)ë¥¼ ë¡œë“œí•©ë‹ˆë‹¤.
+ * ì´ í•¨ìˆ˜ëŠ” êµ¬ì¡°ì²´ì˜ ì¸ìŠ¤í„´ìŠ¤ê°€ ì•„ë‹Œ, í•´ë‹¹ êµ¬ì¡°ì²´ì˜ ì •ì˜ë¥¼ ë¡œë“œí•©ë‹ˆë‹¤.
  *
- * @param ModuleName ·ÎµåÇÒ ±¸Á¶Ã¼°¡ ¼ÓÇÑ ¸ğµâÀÇ ÀÌ¸§.
- * @param StructName ·ÎµåÇÒ ±¸Á¶Ã¼ÀÇ ÀÌ¸§.
- * @return UScriptStruct* ±¸Á¶Ã¼ÀÇ Á¤ÀÇ°¡ ¼º°øÀûÀ¸·Î ·ÎµåµÇ¸é ÇØ´ç ±¸Á¶Ã¼ÀÇ Æ÷ÀÎÅÍ¸¦ ¹İÈ¯, ½ÇÆĞÇÏ¸é nullptrÀ» ¹İÈ¯.
+ * @param ModuleName ë¡œë“œí•  êµ¬ì¡°ì²´ê°€ ì†í•œ ëª¨ë“ˆì˜ ì´ë¦„.
+ * @param StructName ë¡œë“œí•  êµ¬ì¡°ì²´ì˜ ì´ë¦„.
+ * @return UScriptStruct* êµ¬ì¡°ì²´ì˜ ì •ì˜ê°€ ì„±ê³µì ìœ¼ë¡œ ë¡œë“œë˜ë©´ í•´ë‹¹ êµ¬ì¡°ì²´ì˜ í¬ì¸í„°ë¥¼ ë°˜í™˜, ì‹¤íŒ¨í•˜ë©´ nullptrì„ ë°˜í™˜.
  */
 UScriptStruct* EditorPackageUtils::LoadStructDefinitionByName(const FString& ModuleName, const FString& StructName)
 {
-    // RowStructPath ¼³Á¤ (±¸Á¶Ã¼ Á¤ÀÇ¸¦ µ¿ÀûÀ¸·Î Ã£±â À§ÇÑ °æ·Î)
+    // RowStructPath ì„¤ì • (êµ¬ì¡°ì²´ ì •ì˜ë¥¼ ë™ì ìœ¼ë¡œ ì°¾ê¸° ìœ„í•œ ê²½ë¡œ)
     FString RowStructPath = FString::Printf(TEXT("/Script/%s.%s"), *ModuleName, *StructName);
 
-    // UScriptStruct Á¤ÀÇ ·Îµå
+    // UScriptStruct ì •ì˜ ë¡œë“œ
     UScriptStruct* RowStruct = LoadObject<UScriptStruct>(nullptr, *RowStructPath);
 
     if (!RowStruct)
@@ -203,19 +205,19 @@ UScriptStruct* EditorPackageUtils::LoadStructDefinitionByName(const FString& Mod
 }
 
 /**
- * µ¿ÀûÀ¸·Î ¸ğµâ¸í°ú Å¬·¡½º¸íÀ» ±â¹İÀ¸·Î Å¬·¡½º Á¤ÀÇ(Å¸ÀÔ Á¤º¸)¸¦ ·ÎµåÇÕ´Ï´Ù.
- * ÀÌ ÇÔ¼ö´Â Å¬·¡½º ÀÎ½ºÅÏ½º°¡ ¾Æ´Ñ, ÇØ´ç Å¬·¡½ºÀÇ Á¤ÀÇ¸¦ ·ÎµåÇÕ´Ï´Ù.
+ * ë™ì ìœ¼ë¡œ ëª¨ë“ˆëª…ê³¼ í´ë˜ìŠ¤ëª…ì„ ê¸°ë°˜ìœ¼ë¡œ í´ë˜ìŠ¤ ì •ì˜(íƒ€ì… ì •ë³´)ë¥¼ ë¡œë“œí•©ë‹ˆë‹¤.
+ * ì´ í•¨ìˆ˜ëŠ” í´ë˜ìŠ¤ ì¸ìŠ¤í„´ìŠ¤ê°€ ì•„ë‹Œ, í•´ë‹¹ í´ë˜ìŠ¤ì˜ ì •ì˜ë¥¼ ë¡œë“œí•©ë‹ˆë‹¤.
  *
- * @param ModuleName ·ÎµåÇÒ Å¬·¡½º°¡ ¼ÓÇÑ ¸ğµâÀÇ ÀÌ¸§.
- * @param ClassName ·ÎµåÇÒ Å¬·¡½ºÀÇ ÀÌ¸§.
- * @return UClass* Å¬·¡½º Á¤ÀÇ°¡ ¼º°øÀûÀ¸·Î ·ÎµåµÇ¸é ÇØ´ç Å¬·¡½ºÀÇ Æ÷ÀÎÅÍ¸¦ ¹İÈ¯, ½ÇÆĞÇÏ¸é nullptrÀ» ¹İÈ¯.
+ * @param ModuleName ë¡œë“œí•  í´ë˜ìŠ¤ê°€ ì†í•œ ëª¨ë“ˆì˜ ì´ë¦„.
+ * @param ClassName ë¡œë“œí•  í´ë˜ìŠ¤ì˜ ì´ë¦„.
+ * @return UClass* í´ë˜ìŠ¤ ì •ì˜ê°€ ì„±ê³µì ìœ¼ë¡œ ë¡œë“œë˜ë©´ í•´ë‹¹ í´ë˜ìŠ¤ì˜ í¬ì¸í„°ë¥¼ ë°˜í™˜, ì‹¤íŒ¨í•˜ë©´ nullptrì„ ë°˜í™˜.
  */
 UClass* EditorPackageUtils::LoadClassDefinitionByName(const FString& ModuleName, const FString& ClassName)
 {
-    // ClassPath ¼³Á¤ (Å¬·¡½º Á¤ÀÇ¸¦ µ¿ÀûÀ¸·Î Ã£±â À§ÇÑ °æ·Î)
+    // ClassPath ì„¤ì • (í´ë˜ìŠ¤ ì •ì˜ë¥¼ ë™ì ìœ¼ë¡œ ì°¾ê¸° ìœ„í•œ ê²½ë¡œ)
     FString ClassPath = FString::Printf(TEXT("/Script/%s.%s"), *ModuleName, *ClassName);
 
-    // UClass Á¤ÀÇ ·Îµå
+    // UClass ì •ì˜ ë¡œë“œ
     UClass* LoadedClass = LoadObject<UClass>(nullptr, *ClassPath);
 
     if (!LoadedClass)
@@ -231,93 +233,93 @@ UClass* EditorPackageUtils::LoadClassDefinitionByName(const FString& ModuleName,
 }
 
 /**
- * ºôµå¸¦ ½ÇÇàÇÏ°í ÇÖ ¸®·Îµå¸¦ Ã³¸®ÇÏ´Â ÇÔ¼ö.
- * ºôµå Áß¿¡´Â »óÅÂ¸¦ ¾Ë¸®±â À§ÇÑ ³ëÆ¼ÇÇÄÉÀÌ¼ÇÀ» Ç¥½ÃÇÏ¸ç, ºôµå ¿Ï·á ÈÄ ÇÖ ¸®·Îµå¸¦ ½ÇÇàÇÕ´Ï´Ù.
+ * ë¹Œë“œë¥¼ ì‹¤í–‰í•˜ê³  í•« ë¦¬ë¡œë“œë¥¼ ì²˜ë¦¬í•˜ëŠ” í•¨ìˆ˜.
+ * ë¹Œë“œ ì¤‘ì—ëŠ” ìƒíƒœë¥¼ ì•Œë¦¬ê¸° ìœ„í•œ ë…¸í‹°í”¼ì¼€ì´ì…˜ì„ í‘œì‹œí•˜ë©°, ë¹Œë“œ ì™„ë£Œ í›„ í•« ë¦¬ë¡œë“œë¥¼ ì‹¤í–‰í•©ë‹ˆë‹¤.
  */
 void EditorPackageUtils::ExecuteBuildAndHotReload()
 {
-    // ºôµå ÁøÇà »óÅÂ¸¦ ¾Ë¸®±â À§ÇÑ ³ëÆ¼ÇÇÄÉÀÌ¼Ç »ı¼º
+    // ë¹Œë“œ ì§„í–‰ ìƒíƒœë¥¼ ì•Œë¦¬ê¸° ìœ„í•œ ë…¸í‹°í”¼ì¼€ì´ì…˜ ìƒì„±
     FNotificationInfo Info(FText::FromString(TEXT("Build in progress...")));
-    Info.bFireAndForget = false;  // ÀÚµ¿À¸·Î »ç¶óÁöÁö ¾Êµµ·Ï ¼³Á¤
+    Info.bFireAndForget = false;  // ìë™ìœ¼ë¡œ ì‚¬ë¼ì§€ì§€ ì•Šë„ë¡ ì„¤ì •
     Info.FadeOutDuration = 0.5f;
     Info.ExpireDuration = 0.0f;
-    Info.bUseThrobber = true;  // °è¼Ó µµ´Â ¾ÆÀÌÄÜ »ç¿ë
+    Info.bUseThrobber = true;  // ê³„ì† ë„ëŠ” ì•„ì´ì½˜ ì‚¬ìš©
     Info.bUseSuccessFailIcons = true;
 
     TSharedPtr<SNotificationItem> NotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
     if (NotificationItem.IsValid())
     {
-        NotificationItem->SetCompletionState(SNotificationItem::CS_Pending);  // ÁøÇà Áß »óÅÂ·Î ¼³Á¤
+        NotificationItem->SetCompletionState(SNotificationItem::CS_Pending);  // ì§„í–‰ ì¤‘ ìƒíƒœë¡œ ì„¤ì •
     }
 
-    // ºôµå ½ÇÇà
+    // ë¹Œë“œ ì‹¤í–‰
     GUnrealEd->Exec(NULL, TEXT("Build"));
 
-    // ºôµå ¿Ï·á ÈÄ »óÅÂ ¾÷µ¥ÀÌÆ®
+    // ë¹Œë“œ ì™„ë£Œ í›„ ìƒíƒœ ì—…ë°ì´íŠ¸
     if (NotificationItem.IsValid())
     {
         NotificationItem->SetText(FText::FromString(TEXT("Build completed successfully!")));
-        NotificationItem->SetCompletionState(SNotificationItem::CS_Success);  // ¼º°ø »óÅÂ·Î ¼³Á¤
-        NotificationItem->ExpireAndFadeout();  // ¿Ï·á ÈÄ ¾Ë¸²À» ¼­¼­È÷ »ç¶óÁö°Ô ÇÔ
+        NotificationItem->SetCompletionState(SNotificationItem::CS_Success);  // ì„±ê³µ ìƒíƒœë¡œ ì„¤ì •
+        NotificationItem->ExpireAndFadeout();  // ì™„ë£Œ í›„ ì•Œë¦¼ì„ ì„œì„œíˆ ì‚¬ë¼ì§€ê²Œ í•¨
     }
 
-    // ÇÖ ¸®·Îµå Æ®¸®°Å
+    // í•« ë¦¬ë¡œë“œ íŠ¸ë¦¬ê±°
     IHotReloadInterface& HotReload = FModuleManager::LoadModuleChecked<IHotReloadInterface>("HotReload");
     HotReload.DoHotReloadFromEditor(EHotReloadFlags::None);
 }
 
 /**
- * ºñµ¿±âÀûÀ¸·Î ºôµå¸¦ ½ÇÇàÇÏ°í, ºôµå ¿Ï·á ÈÄ ¿¡µğÅÍ¸¦ ´Ù½Ã ½ÃÀÛÇÏ´Â ÇÔ¼ö.
- * ºôµå ÁøÇà Áß¿¡´Â ³ëÆ¼ÇÇÄÉÀÌ¼ÇÀ» ÅëÇØ »óÅÂ¸¦ Ç¥½ÃÇÏ°í, ºôµå°¡ ¼º°øÀûÀ¸·Î ¿Ï·áµÇ¸é ¿¡µğÅÍ¸¦ ´Ù½Ã ½ÃÀÛÇÕ´Ï´Ù.
- * ½ÇÆĞ ½Ã¿¡´Â ½ÇÆĞ ¸Ş½ÃÁö¸¦ Ç¥½ÃÇÕ´Ï´Ù.
+ * ë¹„ë™ê¸°ì ìœ¼ë¡œ ë¹Œë“œë¥¼ ì‹¤í–‰í•˜ê³ , ë¹Œë“œ ì™„ë£Œ í›„ ì—ë””í„°ë¥¼ ë‹¤ì‹œ ì‹œì‘í•˜ëŠ” í•¨ìˆ˜.
+ * ë¹Œë“œ ì§„í–‰ ì¤‘ì—ëŠ” ë…¸í‹°í”¼ì¼€ì´ì…˜ì„ í†µí•´ ìƒíƒœë¥¼ í‘œì‹œí•˜ê³ , ë¹Œë“œê°€ ì„±ê³µì ìœ¼ë¡œ ì™„ë£Œë˜ë©´ ì—ë””í„°ë¥¼ ë‹¤ì‹œ ì‹œì‘í•©ë‹ˆë‹¤.
+ * ì‹¤íŒ¨ ì‹œì—ëŠ” ì‹¤íŒ¨ ë©”ì‹œì§€ë¥¼ í‘œì‹œí•©ë‹ˆë‹¤.
  *
- * @note ºôµå ÇÁ·Î¼¼½º´Â ºñµ¿±âÀûÀ¸·Î ½ÇÇàµÇ¸ç, ¿Ï·áµÇ¸é ¿¡µğÅÍ¸¦ Àç½ÃÀÛÇÕ´Ï´Ù.
+ * @note ë¹Œë“œ í”„ë¡œì„¸ìŠ¤ëŠ” ë¹„ë™ê¸°ì ìœ¼ë¡œ ì‹¤í–‰ë˜ë©°, ì™„ë£Œë˜ë©´ ì—ë””í„°ë¥¼ ì¬ì‹œì‘í•©ë‹ˆë‹¤.
  */
 void EditorPackageUtils::StartBuildAndRestartEditor()
 {
-    // ºôµå ÁøÇà »óÅÂ¸¦ ¾Ë¸®±â À§ÇÑ ³ëÆ¼ÇÇÄÉÀÌ¼Ç »ı¼º
+    // ë¹Œë“œ ì§„í–‰ ìƒíƒœë¥¼ ì•Œë¦¬ê¸° ìœ„í•œ ë…¸í‹°í”¼ì¼€ì´ì…˜ ìƒì„±
     FNotificationInfo Info(FText::FromString(TEXT("Build in progress...")));
-    Info.bFireAndForget = false;  // ÀÚµ¿À¸·Î »ç¶óÁöÁö ¾Êµµ·Ï ¼³Á¤
+    Info.bFireAndForget = false;  // ìë™ìœ¼ë¡œ ì‚¬ë¼ì§€ì§€ ì•Šë„ë¡ ì„¤ì •
     Info.FadeOutDuration = 0.5f;
     Info.ExpireDuration = 0.0f;
-    Info.bUseThrobber = true;  // °è¼Ó µµ´Â ¾ÆÀÌÄÜ »ç¿ë
+    Info.bUseThrobber = true;  // ê³„ì† ë„ëŠ” ì•„ì´ì½˜ ì‚¬ìš©
     Info.bUseSuccessFailIcons = true;
 
     TSharedPtr<SNotificationItem> NotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
     if (NotificationItem.IsValid())
     {
-        NotificationItem->SetCompletionState(SNotificationItem::CS_Pending);  // ºôµå ÁøÇà Áß »óÅÂ·Î ¼³Á¤
+        NotificationItem->SetCompletionState(SNotificationItem::CS_Pending);  // ë¹Œë“œ ì§„í–‰ ì¤‘ ìƒíƒœë¡œ ì„¤ì •
     }
 
-    // ºñµ¿±â ÀÛ¾÷À¸·Î ºôµå ÇÁ·Î¼¼½º¸¦ ½ÇÇà
+    // ë¹„ë™ê¸° ì‘ì—…ìœ¼ë¡œ ë¹Œë“œ í”„ë¡œì„¸ìŠ¤ë¥¼ ì‹¤í–‰
     AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [=]()
         {
-            // UnrealBuildTool.exe Àı´ë °æ·Î ¼³Á¤ (µ¿ÀûÀ¸·Î ¿£Áø ¼³Ä¡ °æ·Î °¡Á®¿À±â)
+            // UnrealBuildTool.exe ì ˆëŒ€ ê²½ë¡œ ì„¤ì • (ë™ì ìœ¼ë¡œ ì—”ì§„ ì„¤ì¹˜ ê²½ë¡œ ê°€ì ¸ì˜¤ê¸°)
             FString UBTPath = FPaths::Combine(
-                FPaths::EngineDir(),  // ÇöÀç ¿£Áø ¼³Ä¡ °æ·Î¸¦ ÀÚµ¿À¸·Î °¡Á®¿È
+                FPaths::EngineDir(),  // í˜„ì¬ ì—”ì§„ ì„¤ì¹˜ ê²½ë¡œë¥¼ ìë™ìœ¼ë¡œ ê°€ì ¸ì˜´
                 TEXT("Binaries"),
                 TEXT("DotNET"),
                 TEXT("UnrealBuildTool"),
-                TEXT("UnrealBuildTool.exe")  // Á¤È®ÇÑ ÆÄÀÏ °æ·Î (È¤½Ã OS ³ª ¿£Áø ¹öÀü¿¡ µû¶ó ´Ù¸£¸é Ãß°¡ Ã³¸® ÇÊ¿ä)
+                TEXT("UnrealBuildTool.exe")  // ì •í™•í•œ íŒŒì¼ ê²½ë¡œ (í˜¹ì‹œ OS ë‚˜ ì—”ì§„ ë²„ì „ì— ë”°ë¼ ë‹¤ë¥´ë©´ ì¶”ê°€ ì²˜ë¦¬ í•„ìš”)
             );
-            UE_LOG(LogTemp, Log, TEXT("UBTPath: %s"), *UBTPath);  // µğ¹ö±ë ·Î±× Ãâ·Â
+            UE_LOG(LogTemp, Log, TEXT("UBTPath: %s"), *UBTPath);  // ë””ë²„ê¹… ë¡œê·¸ ì¶œë ¥
 
-            // ½ÇÁ¦·Î ÇØ´ç °æ·Î¿¡ ÆÄÀÏÀÌ ÀÖ´ÂÁö È®ÀÎ
+            // ì‹¤ì œë¡œ í•´ë‹¹ ê²½ë¡œì— íŒŒì¼ì´ ìˆëŠ”ì§€ í™•ì¸
             if (!FPaths::FileExists(UBTPath))
             {
                 UE_LOG(LogTemp, Error, TEXT("UnrealBuildTool.exe file does not exist at: %s"), *UBTPath);
                 return;
             }
 
-            // ÇÁ·ÎÁ§Æ® °æ·Î
+            // í”„ë¡œì íŠ¸ ê²½ë¡œ
             FString ProjectPath = FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath());
-            UE_LOG(LogTemp, Log, TEXT("ProjectPath: %s"), *ProjectPath);  // µğ¹ö±ë ·Î±× Ãâ·Â
+            UE_LOG(LogTemp, Log, TEXT("ProjectPath: %s"), *ProjectPath);  // ë””ë²„ê¹… ë¡œê·¸ ì¶œë ¥
 
-            // ºôµå ¸í·É¾î ÀÎÀÚ ±¸¼º (ÇÁ·ÎÁ§Æ® °æ·Î Æ÷ÇÔ)
+            // ë¹Œë“œ ëª…ë ¹ì–´ ì¸ì êµ¬ì„± (í”„ë¡œì íŠ¸ ê²½ë¡œ í¬í•¨)
             FString Arguments = FString::Printf(TEXT("\"%s\" -projectfiles"), *ProjectPath);
-            UE_LOG(LogTemp, Log, TEXT("Arguments: %s"), *Arguments);  // µğ¹ö±ë ·Î±× Ãâ·Â
+            UE_LOG(LogTemp, Log, TEXT("Arguments: %s"), *Arguments);  // ë””ë²„ê¹… ë¡œê·¸ ì¶œë ¥
 
-            // ºôµå ÇÁ·Î¼¼½º ½ÇÇà
+            // ë¹Œë“œ í”„ë¡œì„¸ìŠ¤ ì‹¤í–‰
             FProcHandle BuildProcess = FPlatformProcess::CreateProc(*UBTPath, *Arguments, true, false, false, nullptr, 0, nullptr, nullptr);
 
             if (!BuildProcess.IsValid())
@@ -335,42 +337,42 @@ void EditorPackageUtils::StartBuildAndRestartEditor()
                 return;
             }
 
-            // ºôµå °á°ú¸¦ ´ë±â ¹× °¨½Ã
+            // ë¹Œë“œ ê²°ê³¼ë¥¼ ëŒ€ê¸° ë° ê°ì‹œ
             while (FPlatformProcess::IsProcRunning(BuildProcess))
             {
-                FPlatformProcess::Sleep(1);  // ºôµå ÁßÀÏ ¶§ ´ë±â
+                FPlatformProcess::Sleep(1);  // ë¹Œë“œ ì¤‘ì¼ ë•Œ ëŒ€ê¸°
             }
 
             int32 ReturnCode;
             FPlatformProcess::GetProcReturnCode(BuildProcess, &ReturnCode);
 
-            // ¸ŞÀÎ ½º·¹µå¿¡¼­ ÈÄ¼Ó ÀÛ¾÷ ½ÇÇà
+            // ë©”ì¸ ìŠ¤ë ˆë“œì—ì„œ í›„ì† ì‘ì—… ì‹¤í–‰
             AsyncTask(ENamedThreads::GameThread, [=]()
                 {
                     if (ReturnCode == 0)
                     {
-                        // ºôµå ¼º°ø
+                        // ë¹Œë“œ ì„±ê³µ
                         UE_LOG(LogTemp, Log, TEXT("Build completed successfully!"));
 
                         if (NotificationItem.IsValid())
                         {
                             NotificationItem->SetText(FText::FromString(TEXT("Build completed successfully!")));
-                            NotificationItem->SetCompletionState(SNotificationItem::CS_Success);  // ¼º°ø »óÅÂ·Î ¾÷µ¥ÀÌÆ®
+                            NotificationItem->SetCompletionState(SNotificationItem::CS_Success);  // ì„±ê³µ ìƒíƒœë¡œ ì—…ë°ì´íŠ¸
                             NotificationItem->ExpireAndFadeout();
                         }
 
-                        // ¿¡µğÅÍ Àç½ÃÀÛ
-                        RestartEditorWithProject(ProjectPath);  // ÇöÀç ÇÁ·ÎÁ§Æ®·Î Àç½ÃÀÛ
+                        // ì—ë””í„° ì¬ì‹œì‘
+                        RestartEditorWithProject(ProjectPath);  // í˜„ì¬ í”„ë¡œì íŠ¸ë¡œ ì¬ì‹œì‘
                     }
                     else
                     {
-                        // ºôµå ½ÇÆĞ
+                        // ë¹Œë“œ ì‹¤íŒ¨
                         UE_LOG(LogTemp, Error, TEXT("Build failed. Check the logs for more details."));
 
                         if (NotificationItem.IsValid())
                         {
                             NotificationItem->SetText(FText::FromString(TEXT("Build failed!")));
-                            NotificationItem->SetCompletionState(SNotificationItem::CS_Fail);  // ½ÇÆĞ »óÅÂ·Î ¾÷µ¥ÀÌÆ®
+                            NotificationItem->SetCompletionState(SNotificationItem::CS_Fail);  // ì‹¤íŒ¨ ìƒíƒœë¡œ ì—…ë°ì´íŠ¸
                             NotificationItem->ExpireAndFadeout();
                         }
                     }
@@ -379,35 +381,35 @@ void EditorPackageUtils::StartBuildAndRestartEditor()
 }
 
 /**
- * ¿¡µğÅÍ¸¦ Á¾·áÇÏ°í, ÇÁ·ÎÁ§Æ®¸¦ ´Ù½Ã ½ÇÇàÇÏ´Â ÇÔ¼ö.
- * ÇöÀç ¿¡µğÅÍ¸¦ Á¾·áÇÑ ÈÄ, ÇØ´ç ÇÁ·ÎÁ§Æ® ÆÄÀÏÀ» ´Ù½Ã ½ÇÇàÇÕ´Ï´Ù.
+ * ì—ë””í„°ë¥¼ ì¢…ë£Œí•˜ê³ , í”„ë¡œì íŠ¸ë¥¼ ë‹¤ì‹œ ì‹¤í–‰í•˜ëŠ” í•¨ìˆ˜.
+ * í˜„ì¬ ì—ë””í„°ë¥¼ ì¢…ë£Œí•œ í›„, í•´ë‹¹ í”„ë¡œì íŠ¸ íŒŒì¼ì„ ë‹¤ì‹œ ì‹¤í–‰í•©ë‹ˆë‹¤.
  *
- * @param ProjectPath ´Ù½Ã ½ÇÇàÇÒ ÇÁ·ÎÁ§Æ®ÀÇ ÆÄÀÏ °æ·Î.
+ * @param ProjectPath ë‹¤ì‹œ ì‹¤í–‰í•  í”„ë¡œì íŠ¸ì˜ íŒŒì¼ ê²½ë¡œ.
  */
 void EditorPackageUtils::RestartEditorWithProject(const FString& ProjectPath)
 {
-    // ÇöÀç ½ÇÇà ÁßÀÎ ¿¡µğÅÍÀÇ °æ·Î
+    // í˜„ì¬ ì‹¤í–‰ ì¤‘ì¸ ì—ë””í„°ì˜ ê²½ë¡œ
     FString EditorPath = FPlatformProcess::ExecutablePath();
 
-    // ÀÎÀÚ·Î ÇöÀç ÇÁ·ÎÁ§Æ®ÀÇ °æ·Î¸¦ Àü´Ş
+    // ì¸ìë¡œ í˜„ì¬ í”„ë¡œì íŠ¸ì˜ ê²½ë¡œë¥¼ ì „ë‹¬
     FString Arguments = FString::Printf(TEXT("\"%s\""), *ProjectPath);
 
-    // ¿¡µğÅÍ Àç½ÃÀÛ (ÇöÀç ÇÁ·ÎÁ§Æ®·Î)
+    // ì—ë””í„° ì¬ì‹œì‘ (í˜„ì¬ í”„ë¡œì íŠ¸ë¡œ)
     FPlatformProcess::CreateProc(*EditorPath, *Arguments, true, false, false, nullptr, 0, nullptr, nullptr);
 
-    // ¿¡µğÅÍ Á¾·á (¿¡µğÅÍ Á¾·á ÈÄ »õ·Î¿î ÇÁ·Î¼¼½º°¡ ½ÇÇàµÊ)
+    // ì—ë””í„° ì¢…ë£Œ (ì—ë””í„° ì¢…ë£Œ í›„ ìƒˆë¡œìš´ í”„ë¡œì„¸ìŠ¤ê°€ ì‹¤í–‰ë¨)
     FPlatformMisc::RequestExit(false);
 }
 
 /**
- * SaveObject¸¦ ÁÖ¾îÁø µğ·ºÅÍ¸®¿Í ÆÄÀÏ ÀÌ¸§¿¡ ¸Â°Ô Unreal Engine ÆĞÅ°Áö·Î ÀúÀåÇÏ´Â ÇÔ¼ö.
- * SaveObject°¡ ÀÌ¹Ì Á¸ÀçÇÏ´Â ÆĞÅ°Áö¿¡ ¼ÓÇÏÁö ¾ÊÀ¸¸é »õ·Î¿î ÆĞÅ°Áö¸¦ »ı¼ºÇÏ°í,
- * ÀÌÈÄ ÀÌ ÆĞÅ°Áö¸¦ ÀúÀåÇÕ´Ï´Ù. ÆĞÅ°Áö °æ·Î´Â Unreal Engine¿¡¼­ »ç¿ëµÇ´Â
- * "/Game" ¶Ç´Â "/PluginName" Çü½ÄÀÇ ÆĞÅ°Áö °æ·Î·Î º¯È¯µË´Ï´Ù.
+ * SaveObjectë¥¼ ì£¼ì–´ì§„ ë””ë ‰í„°ë¦¬ì™€ íŒŒì¼ ì´ë¦„ì— ë§ê²Œ Unreal Engine íŒ¨í‚¤ì§€ë¡œ ì €ì¥í•˜ëŠ” í•¨ìˆ˜.
+ * SaveObjectê°€ ì´ë¯¸ ì¡´ì¬í•˜ëŠ” íŒ¨í‚¤ì§€ì— ì†í•˜ì§€ ì•Šìœ¼ë©´ ìƒˆë¡œìš´ íŒ¨í‚¤ì§€ë¥¼ ìƒì„±í•˜ê³ ,
+ * ì´í›„ ì´ íŒ¨í‚¤ì§€ë¥¼ ì €ì¥í•©ë‹ˆë‹¤. íŒ¨í‚¤ì§€ ê²½ë¡œëŠ” Unreal Engineì—ì„œ ì‚¬ìš©ë˜ëŠ”
+ * "/Game" ë˜ëŠ” "/PluginName" í˜•ì‹ì˜ íŒ¨í‚¤ì§€ ê²½ë¡œë¡œ ë³€í™˜ë©ë‹ˆë‹¤.
  *
- * @param SaveObject ÀúÀåÇÒ UObject.
- * @param SaveDirectory ÆÄÀÏ ½Ã½ºÅÛ »óÀÇ ÀúÀåÇÒ µğ·ºÅÍ¸® °æ·Î (¿¹: "C:/Unreal Projects/YourProject/Content/...").
- * @param FileName ÀúÀåÇÒ ÆÄÀÏ ÀÌ¸§ (È®ÀåÀÚ´Â ÇÊ¿äÇÏÁö ¾ÊÀ½).
+ * @param SaveObject ì €ì¥í•  UObject.
+ * @param SaveDirectory íŒŒì¼ ì‹œìŠ¤í…œ ìƒì˜ ì €ì¥í•  ë””ë ‰í„°ë¦¬ ê²½ë¡œ (ì˜ˆ: "C:/Unreal Projects/YourProject/Content/...").
+ * @param FileName ì €ì¥í•  íŒŒì¼ ì´ë¦„ (í™•ì¥ìëŠ” í•„ìš”í•˜ì§€ ì•ŠìŒ).
  */
 UPackage* EditorPackageUtils::SaveAssetToPackage(UObject* const SaveObject, const FString& SaveDirectory, const FString& FileName, EObjectFlags TopLevelFlags)
 {
@@ -417,8 +419,8 @@ UPackage* EditorPackageUtils::SaveAssetToPackage(UObject* const SaveObject, cons
         return nullptr;
     }
 
-    // -- ÇÁ·ÎÁ§Æ®ÀÇ ÄÜÅÙÃ÷ µğ·ºÅÍ¸® °æ·Î¸¦ Àı´ë °æ·Î·Î º¯È¯
-    // SaveDirectory ¿¡¼­ PackagePath ·Î °æ·Î º¯È¯
+    // -- í”„ë¡œì íŠ¸ì˜ ì½˜í…ì¸  ë””ë ‰í„°ë¦¬ ê²½ë¡œë¥¼ ì ˆëŒ€ ê²½ë¡œë¡œ ë³€í™˜
+    // SaveDirectory ì—ì„œ PackagePath ë¡œ ê²½ë¡œ ë³€í™˜
     FString RelativePath = EditorPackageUtils::ConvertFilePathToPackagePath(SaveDirectory);
     UE_LOG(LogTemp, Log, TEXT("Convert RelativePath: %s"), *RelativePath);
     if (RelativePath.IsEmpty())
@@ -427,15 +429,15 @@ UPackage* EditorPackageUtils::SaveAssetToPackage(UObject* const SaveObject, cons
         return nullptr;
     }
 
-    // -- ÆĞÅ°Áö °æ·Î¿¡ SaveObject ÀÌ¸§À» Ãß°¡ÇÏ¿© ÃÖÁ¾ ÆĞÅ°Áö °æ·Î¸¦ »ı¼º
+    // -- íŒ¨í‚¤ì§€ ê²½ë¡œì— SaveObject ì´ë¦„ì„ ì¶”ê°€í•˜ì—¬ ìµœì¢… íŒ¨í‚¤ì§€ ê²½ë¡œë¥¼ ìƒì„±
     FString FullPackagePath = FPaths::Combine(RelativePath, FileName);
     UE_LOG(LogTemp, Log, TEXT("Full Package Path: %s"), *FullPackagePath);
 
-    // -- ÆĞÅ°Áö »ı¼º
+    // -- íŒ¨í‚¤ì§€ ìƒì„±
     UPackage* ExistingPackage = FindPackage(nullptr, *FullPackagePath);
     if (!ExistingPackage)
     {
-        // -- ÆĞÅ°Áö »ı¼º
+        // -- íŒ¨í‚¤ì§€ ìƒì„±
         ExistingPackage = CreatePackage(*FullPackagePath);
         if (!ExistingPackage)
         {
@@ -446,13 +448,13 @@ UPackage* EditorPackageUtils::SaveAssetToPackage(UObject* const SaveObject, cons
     }
     SaveObject->Rename(*FileName, ExistingPackage);
 
-    // -- Asset µî·Ï
+    // -- Asset ë“±ë¡
     if (EditorPackageUtils::IsAssetAlreadyRegistered(FullPackagePath) == false)
     {
         FAssetRegistryModule::AssetCreated(SaveObject);
     }
 
-    // -- ÆĞÅ°Áö ÀúÀå
+    // -- íŒ¨í‚¤ì§€ ì €ì¥
     SaveObject->MarkPackageDirty();
 
     if (!IFileManager::Get().DirectoryExists(*SaveDirectory))
@@ -464,8 +466,14 @@ UPackage* EditorPackageUtils::SaveAssetToPackage(UObject* const SaveObject, cons
     FString FilePath = FPaths::Combine(SaveDirectory, FileName);
     FilePath = EditorPackageUtils::EnsureUAssetExtension(FilePath);
 
-    // -- ÆĞÅ°Áö ÀúÀå Ã³¸®
-    bool bSaved = UPackage::SavePackage(ExistingPackage, SaveObject, TopLevelFlags, *FilePath);
+    // -- íŒ¨í‚¤ì§€ ì €ì¥ ì²˜ë¦¬
+    FSavePackageArgs SaveArgs;
+    SaveArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+    SaveArgs.Error = GError;
+    SaveArgs.SaveFlags = SAVE_None;
+    SaveArgs.bForceByteSwapping = false;
+    SaveArgs.bWarnOfLongFilename = true;
+    bool bSaved = UPackage::SavePackage(ExistingPackage, SaveObject, *FilePath, SaveArgs);
     if (!bSaved)
     {
         UE_LOG(LogTemp, Error, TEXT("Failed to save package: %s"), *FilePath);

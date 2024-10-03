@@ -40,7 +40,6 @@ public class EditorPackageUtils : ModuleRules
 				"SlateCore",
 				"InputCore",
 				"EditorFramework",
-				"EditorStyle",
 				"UnrealEd",
 				"LevelEditor",
 				"InteractiveToolsFramework",
